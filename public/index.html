@@ -151,16 +151,16 @@
           </div>
         </div>
 
-        <!-- Chat Input Bar (with Camera/Photo attachment) -->
+        <!-- Chat Input Bar (with Camera/Photo/PDF attachment) -->
         <div class="chef-input-bar">
-          <button class="btn-attach-photo" onclick="document.getElementById('aiImageInput').click()" title="Subir o hacer foto a una receta">
-            📷
+          <button class="btn-attach-photo" onclick="document.getElementById('aiImageInput').click()" title="Subir foto o PDF de una receta">
+            📎📷
           </button>
-          <input type="file" id="aiImageInput" accept="image/*" onchange="handleAiImagePicked(event)" style="display:none" />
+          <input type="file" id="aiImageInput" accept="image/*,application/pdf,.pdf" onchange="handleAiImagePicked(event)" style="display:none" />
           <textarea
             id="chefChatInput"
             rows="2"
-            placeholder="Pídele una receta (ej: 'Quiero hacer una pizza de jamón ibérico y burrata') o dime qué cambiar del borrador..."
+            placeholder="Pega aquí tu propia receta (o sube foto/PDF con 📎📷), pídele una nueva o dile qué cambiar..."
             onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendChefMessage();}"
           ></textarea>
           <button class="btn-send-chat" id="btnSendChef" onclick="sendChefMessage()">
@@ -168,7 +168,7 @@
           </button>
         </div>
         <div id="attachedPhotoIndicator" style="display:none; margin-top:8px; font-size:0.84rem; color:#15803d; font-weight:600">
-          📸 Foto adjunta lista para enviar al Chef IA <button onclick="clearPickedPhoto()" style="border:none; background:none; color:#b91c1c; cursor:pointer">✕ Quitar</button>
+          📎 Archivo/Foto de receta adjunto (puedes pulsar "Enviar ➤" directamente) <button onclick="clearPickedPhoto()" style="border:none; background:none; color:#b91c1c; cursor:pointer">✕ Quitar</button>
         </div>
       </div>
 

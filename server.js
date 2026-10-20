@@ -1,5 +1,4 @@
 const http = require('http');
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -108,13 +107,16 @@ function extractFirstJsonObject(str) {
   return JSON.parse(cleaned);
 }
 
-// Conversational AI Chef (supports Vertex AQ. key, AI Studio AIza key, and automatic cloud LLM fallback)
 async function chatWithChefAI({ history, currentDraft, imageBase64, imageMimeType, adaptMambo, dualMode }) {
   const systemPrompt = `Eres el Chef IA de "Errezetak", una aplicación familiar de recetas vascas y caseras.
-El usuario puede:
-1) Pedirte una receta desde cero (ej. "Quiero hacer una pizza de jamón y burrata", "Dame una receta de lentejas"),
-2) Pegar una receta o subir una foto de una receta, O
-3) Pedirte modificaciones sobre el borrador actual de la receta (ej. "Cambia la burrata por mozzarella", "Hazla para 6 personas", "Añade cómo hacerla en la Mambo Cecotec").
+El usuario puede hacer CUALQUIERA de estas 3 cosas:
+1) DARTE UNA RECETA QUE YA TIENE (pegando el texto de su receta, o subiendo una foto/PDF de una receta en castellano o euskera):
+   - En este caso, NO te inventes una receta distinta: respeta fielmente todos los ingredientes, cantidades y pasos de la receta que te ha pasado el usuario (si está en euskera, pon la explicación en castellano conservando las expresiones originales si quieres).
+   - Estructúrala limpia con el formato de Errezetak.
+2) PEDIRTE QUE CREES O INVENTES UNA RECETA (ej. "Quiero hacer una pizza de jamón y burrata"):
+   - En este caso, propón tú una receta casera completa y deliciosa.
+3) PEDIRTE CAMBIOS SOBRE EL BORRADOR ACTUAL (ej. "Cambia la burrata por mozzarella", "Hazla para 6 personas"):
+   - Modifica el borrador actual aplicando exactamente lo que pide.
 
 Preferencias marcadas actualmente:
 - Adaptar a Mambo Cecotec: ${adaptMambo ? 'SÍ (detallar accesorio: cuchillas, cuchara MamboMix o mariposa; velocidad Vel; temperatura ºC; potencia calorífica PC y tiempo)' : 'Solo si lo pide el usuario'}
@@ -124,7 +126,7 @@ ${currentDraft ? `BORRADOR ACTUAL DE LA RECETA (modifícalo según lo que pida a
 
 Responde SIEMPRE ÚNICAMENTE con un objeto JSON válido con esta estructura exacta (sin texto fuera del JSON):
 {
-  "assistantMessage": "Breve respuesta amable al usuario explicando qué receta has preparado o qué cambios has aplicado (ej. '¡Claro! He preparado esta pizza casera y he ajustado el amasado para la Mambo. ¿Qué te parece o qué quieres cambiar?')",
+  "assistantMessage": "Breve respuesta amable al usuario explicando que has estructurado su receta (o creado/modificado la propuesta) y preguntando si la aprueba o quiere cambiar algo.",
   "recipe": {
     "title": "Nombre descriptivo del plato",
     "icon": "🍕",
@@ -135,12 +137,12 @@ Responde SIEMPRE ÚNICAMENTE con un objeto JSON válido con esta estructura exac
     "imagePromptEn": "Mouth-watering realistic editorial food photography of ...",
     "sections": [
       {
-        "heading": "Ingredientes (para 4 personas)",
+        "heading": "Ingredientes",
         "type": "bullets",
         "items": ["300 g de harina...", "..."]
       },
       {
-        "heading": "Preparación Tradicional / Horno",
+        "heading": "Preparación Tradicional / Olla Exprés",
         "type": "steps",
         "steps": [
           { "bold": "Preparar la masa: ", "text": "Mezclar..." }
@@ -193,14 +195,27 @@ Responde SIEMPRE ÚNICAMENTE con un objeto JSON válido con esta estructura exac
     }
   }
 
-  // 2. Cloud AI Fallback (OpenAI-compatible endpoint, works 24/7 with zero config)
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    ...(history || []).map(m => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: m.text
-    }))
-  ];
+  // 2. Cloud AI Fallback (supports both text and vision images!)
+  const messages = [{ role: 'system', content: systemPrompt }];
+  const hist = history || [];
+  for (let i = 0; i < hist.length; i++) {
+    const m = hist[i];
+    const isLastUser = i === hist.length - 1 && m.role === 'user';
+    if (isLastUser && imageBase64 && imageBase64.startsWith('data:image/')) {
+      messages.push({
+        role: 'user',
+        content: [
+          { type: 'text', text: m.text || 'Extrae y estructura la receta de esta imagen.' },
+          { type: 'image_url', image_url: { url: imageBase64 } }
+        ]
+      });
+    } else {
+      messages.push({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.text
+      });
+    }
+  }
 
   const fallbackResp = await fetch('https://text.pollinations.ai/openai', {
     method: 'POST',
@@ -286,20 +301,17 @@ const server = http.createServer(async (req, res) => {
     const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const pathname = urlObj.pathname;
 
-    // API: List recipes
     if (pathname === '/api/recipes' && req.method === 'GET') {
       const recipes = readRecipes();
       return sendJson(res, 200, { recipes });
     }
 
-    // API: Interactive Chat with Chef IA (returns draft recipe for preview & iteration)
     if (pathname === '/api/chef-chat' && req.method === 'POST') {
       const body = await readBody(req);
       const result = await chatWithChefAI(body);
       return sendJson(res, 200, result);
     }
 
-    // API: Approve Draft Recipe from Chef IA -> Generates Cover Image & Saves
     if (pathname === '/api/recipes/approve-draft' && req.method === 'POST') {
       const body = await readBody(req);
       const draft = body.recipe;
@@ -329,7 +341,6 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 201, { recipe: newRecipe });
     }
 
-    // API: Manual Create Recipe
     if (pathname === '/api/recipes' && req.method === 'POST') {
       const body = await readBody(req);
       let cover = body.cover;
@@ -357,7 +368,6 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 201, { recipe: newRecipe });
     }
 
-    // API: Regenerate AI Cover Image for a Recipe
     if (pathname.startsWith('/api/recipes/') && pathname.endsWith('/regenerate-cover') && req.method === 'POST') {
       const id = pathname.replace('/api/recipes/', '').replace('/regenerate-cover', '');
       const recipes = readRecipes();
@@ -370,7 +380,6 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { recipe: recipes[idx] });
     }
 
-    // API: Update Recipe
     if (pathname.startsWith('/api/recipes/') && req.method === 'PUT') {
       const id = pathname.replace('/api/recipes/', '');
       const body = await readBody(req);
@@ -383,7 +392,6 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { recipe: recipes[idx] });
     }
 
-    // API: Delete Recipe
     if (pathname.startsWith('/api/recipes/') && req.method === 'DELETE') {
       const id = pathname.replace('/api/recipes/', '');
       const recipes = readRecipes();
@@ -392,7 +400,6 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true });
     }
 
-    // Static files
     let filePath = path.join(PUBLIC_DIR, pathname === '/' ? 'index.html' : pathname);
     if (!filePath.startsWith(PUBLIC_DIR)) {
       res.writeHead(403);

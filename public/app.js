@@ -386,7 +386,7 @@ async function sendChefMessage() {
   const text = input.value.trim();
   if (!text && !pickedAiImageBase64) return;
 
-  const userMsg = text || '📸 [Foto de receta enviada]';
+  const userMsg = text || '📎 [He subido mi propia receta adjunta: estructúrala respetando sus ingredientes y pasos]';
   chefHistory.push({ role: 'user', text: userMsg });
   input.value = '';
   renderChefChat();
