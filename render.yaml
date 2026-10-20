@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: errezetak
+    env: node
+    plan: free
+    buildCommand: echo "Ready"
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false

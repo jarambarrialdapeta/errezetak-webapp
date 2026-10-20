@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Errezetak — Nuestro Recetario</title>
+
+  <!-- iOS / iPadOS Web App (PWA) Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Errezetak" />
+  <link rel="apple-touch-icon" href="/images/azenario_tarta.jpg" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#d95d39" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand" onclick="resetFilters()">
+        <span class="brand-logo">🍳</span>
+        <div>
+          <h1 class="brand-title">Errezetak</h1>
+          <p class="brand-subtitle" id="recipeCountLabel">Cargando recetario...</p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <button class="btn-mambo-toggle" id="mamboFilterBtn" onclick="toggleMamboFilter()">
+          🤖 <span>Modo Mambo</span>
+        </button>
+        <button class="btn-primary" onclick="openAddModal()">
+          ➕ <span>Nueva Receta</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Search & Category Pills -->
+    <div class="search-bar-wrap">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input
+          type="search"
+          id="searchInput"
+          placeholder="Buscar por plato o ingrediente (ej. boniato, merluza, mascarpone...)"
+          oninput="renderGallery()"
+        />
+        <button class="search-clear" id="searchClearBtn" onclick="clearSearch()" style="display:none">✕</button>
+      </div>
+      <div class="tag-pills" id="tagPills"></div>
+    </div>
+  </header>
+
+  <!-- Main Recipe Grid -->
+  <main class="container">
+    <div class="recipe-grid" id="recipeGrid"></div>
+  </main>
+
+  <!-- Recipe Detail Modal (Cooking View for iPad / iPhone) -->
+  <div class="modal-backdrop" id="detailModal" style="display:none" onclick="closeDetailOnBackdrop(event)">
+    <div class="modal-sheet detail-sheet">
+      <div class="detail-hero" id="detailHero">
+        <button class="btn-circle detail-close" onclick="closeDetailModal()" title="Cerrar">✕</button>
+        <div class="detail-hero-actions">
+          <button class="btn-pill-glass" id="wakeLockBtn" onclick="toggleWakeLock()">
+            💡 Pantalla siempre encendida: OFF
+          </button>
+          <button class="btn-pill-glass" onclick="regenerateCurrentCover()" id="regenCoverBtn">
+            🎨 Nueva foto IA
+          </button>
+          <button class="btn-pill-glass" onclick="openEditCurrentRecipe()">
+            ✏️ Editar
+          </button>
+          <button class="btn-pill-glass danger" onclick="deleteCurrentRecipe()">
+            🗑️
+          </button>
+        </div>
+        <div class="detail-hero-overlay">
+          <span class="detail-emoji" id="detailEmoji">🍲</span>
+          <h2 class="detail-title" id="detailTitle"></h2>
+          <div class="detail-meta" id="detailMeta"></div>
+        </div>
+      </div>
+
+      <div class="detail-body">
+        <div class="cook-mode-Bar" id="cookModeBar" style="display:none">
+          <span class="cook-mode-label">Modo de cocinado:</span>
+          <div class="cook-mode-tabs">
+            <button class="cook-tab active" data-mode="all" onclick="setCookMode('all')">Ver Ambos</button>
+            <button class="cook-tab" data-mode="olla" onclick="setCookMode('olla')">🍲 Olla Exprés / Cazuela</button>
+            <button class="cook-tab" data-mode="mambo" onclick="setCookMode('mambo')">🤖 Mambo Cecotec</button>
+          </div>
+        </div>
+
+        <p class="cook-hint">👆 <em>Truco para el iPad/iPhone: toca cualquier ingrediente o paso mientras cocinas para ir tachándolo.</em></p>
+
+        <div id="detailContent" class="detail-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit Recipe Modal -->
+  <div class="modal-backdrop" id="addModal" style="display:none" onclick="closeAddOnBackdrop(event)">
+    <div class="modal-sheet add-sheet">
+      <div class="modal-header">
+        <h2 id="addModalTitle">➕ Crear Nueva Receta</h2>
+        <button class="btn-circle" onclick="closeAddModal()">✕</button>
+      </div>
+
+      <div class="mode-switch-tabs" id="addModeTabs">
+        <button class="switch-tab active" id="tabAiBtn" onclick="switchAddTab('ai')">👩‍🍳 Hablar con Chef IA (Gemini)</button>
+        <button class="switch-tab" id="tabManualBtn" onclick="switchAddTab('manual')">📝 Manual / Editar</button>
+      </div>
+
+      <!-- TAB 1: Interactive Conversational Chef IA -->
+      <div id="aiTabContent" class="modal-form">
+        <div class="ai-options-card">
+          <label class="checkbox-row">
+            <input type="checkbox" id="aiDualMode" checked />
+            <span>🍲🤖 <strong>Incluir los 2 modos</strong> (Olla Exprés/Tradicional + Robot Mambo Cecotec)</span>
+          </label>
+          <label class="checkbox-row" style="margin-bottom:0">
+            <input type="checkbox" id="aiAdaptMambo" />
+            <span>🤖 <strong>Solo para Mambo Cecotec</strong> (velocidades, ºC, potencia PC y accesorios)</span>
+          </label>
+        </div>
+
+        <!-- Chat Messages History -->
+        <div class="chef-chat-box" id="chefChatBox"></div>
+
+        <!-- Draft Recipe Preview Card (shown as soon as AI proposes a recipe) -->
+        <div class="draft-preview-card" id="draftPreviewCard" style="display:none">
+          <div class="draft-preview-header">
+            <div>
+              <span class="draft-badge">📋 BORRADOR PROPUESTO (Revísalo antes de guardar)</span>
+              <h3 id="draftTitle" style="margin:6px 0 4px"></h3>
+              <div id="draftMeta" style="font-size:0.83rem; color:var(--muted)"></div>
+            </div>
+            <button class="btn-approve-draft" id="btnApproveDraft" onclick="approveAndSaveDraft()">
+              ✅ ¡La apruebo! Guardar con Foto IA
+            </button>
+          </div>
+          <div class="draft-preview-body" id="draftPreviewBody"></div>
+          <div class="draft-preview-footer">
+            💬 <em>¿Quieres cambiar algún ingrediente, cantidad o paso? Escríbelo abajo y el Chef IA modificará el borrador al instante.</em>
+          </div>
+        </div>
+
+        <!-- Chat Input Bar (with Camera/Photo attachment) -->
+        <div class="chef-input-bar">
+          <button class="btn-attach-photo" onclick="document.getElementById('aiImageInput').click()" title="Subir o hacer foto a una receta">
+            📷
+          </button>
+          <input type="file" id="aiImageInput" accept="image/*" onchange="handleAiImagePicked(event)" style="display:none" />
+          <textarea
+            id="chefChatInput"
+            rows="2"
+            placeholder="Pídele una receta (ej: 'Quiero hacer una pizza de jamón ibérico y burrata') o dime qué cambiar del borrador..."
+            onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendChefMessage();}"
+          ></textarea>
+          <button class="btn-send-chat" id="btnSendChef" onclick="sendChefMessage()">
+            Enviar ➤
+          </button>
+        </div>
+        <div id="attachedPhotoIndicator" style="display:none; margin-top:8px; font-size:0.84rem; color:#15803d; font-weight:600">
+          📸 Foto adjunta lista para enviar al Chef IA <button onclick="clearPickedPhoto()" style="border:none; background:none; color:#b91c1c; cursor:pointer">✕ Quitar</button>
+        </div>
+      </div>
+
+      <!-- TAB 2: Manual / Edit Form -->
+      <div id="manualTabContent" class="modal-form" style="display:none">
+        <input type="hidden" id="editRecipeId" value="" />
+        <div class="form-row">
+          <div class="form-group" style="width: 90px">
+            <label>Icono</label>
+            <input type="text" id="manIcon" value="🍲" style="text-align:center; font-size: 1.4rem" />
+          </div>
+          <div class="form-group" style="flex:1">
+            <label>Nombre de la receta</label>
+            <input type="text" id="manTitle" placeholder="Ej: Karrilerak en salsa" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="flex:1">
+            <label>Tiempo total</label>
+            <input type="text" id="manTime" placeholder="Ej: 45 min" />
+          </div>
+          <div class="form-group" style="width: 120px">
+            <label>Raciones</label>
+            <input type="number" id="manYield" placeholder="4" />
+          </div>
+          <div class="form-group" style="width: 150px">
+            <label>Valoración</label>
+            <select id="manStars">
+              <option value="★★★★★">★★★★★</option>
+              <option value="★★★★">★★★★</option>
+              <option value="★★★">★★★</option>
+              <option value="★★">★★</option>
+              <option value="★">★</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Etiquetas (separadas por coma)</label>
+          <input type="text" id="manTags" placeholder="Comida, Carnes, Mambo, Facil" />
+        </div>
+
+        <div class="form-group">
+          <label>Ingredientes (uno por línea)</label>
+          <textarea id="manIngredients" rows="5" placeholder="400 g de pollo&#10;2 zanahorias&#10;1 puerro"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Pasos de preparación (uno por línea — puedes usar 'Título: explicación')</label>
+          <textarea id="manSteps" rows="6" placeholder="Sofreír la verdura: Pica el puerro y sofríelo 5 minutos.&#10;Cocción: Añade el resto y cuece 20 minutos."></textarea>
+        </div>
+
+        <button class="btn-submit-ai" onclick="submitManualRecipe()">
+          💾 Guardar Receta
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

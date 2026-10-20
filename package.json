@@ -1,0 +1,13 @@
+{
+  "name": "errezetak-webapp",
+  "version": "1.0.0",
+  "description": "Errezetak - Aplicación web familiar de recetas (iPhone, iPad y PC) con adaptación a Mambo Cecotec e IA",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
